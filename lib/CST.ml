@@ -28,6 +28,8 @@ type int_literal = Token.t
 
 type escape_sequence = Token.t
 
+type semgrep_metavariable = Token.t
+
 type imaginary_literal = Token.t
 
 type rune_literal = Token.t
@@ -37,21 +39,26 @@ type anon_choice_EQ_4ccabd6 = [
   | `COLONEQ of Token.t (* ":=" *)
 ]
 
+type semgrep_ellipsis_metavar = Token.t
+
 type interpreted_string_literal_basic_content =
   Token.t (* pattern "[^\"\\n\\\\]+" *)
 
-type constraint_term = (Token.t (* "~" *) option * identifier (*tok*))
+type type_identifier = [
+    `Id of identifier (*tok*)
+  | `Semg_meta of semgrep_metavariable (*tok*)
+]
 
 type empty_labeled_statement = (identifier (*tok*) * Token.t (* ":" *))
 
-type field_name_list = (
-    identifier (*tok*)
-  * (Token.t (* "," *) * identifier (*tok*)) list (* zero or more *)
+type continue_statement = (
+    Token.t (* "continue" *)
+  * identifier (*tok*) option
 )
 
-type qualified_type = (
-    identifier (*tok*) * Token.t (* "." *) * identifier (*tok*)
-)
+type break_statement = (Token.t (* "break" *) * identifier (*tok*) option)
+
+type goto_statement = (Token.t (* "goto" *) * identifier (*tok*))
 
 type string_literal = [
     `Raw_str_lit of raw_string_literal (*tok*)
@@ -67,10 +74,11 @@ type string_literal = [
     )
 ]
 
-type interface_type_name = [
-    `Id of identifier (*tok*)
-  | `Qual_type of qualified_type
-]
+type constraint_term = (Token.t (* "~" *) option * type_identifier)
+
+type qualified_type = (
+    identifier (*tok*) * Token.t (* "." *) * type_identifier
+)
 
 type import_spec = (
     [
@@ -80,6 +88,17 @@ type import_spec = (
     ]
       option
   * string_literal
+)
+
+type interface_type_name = [
+    `Choice_id of type_identifier
+  | `Qual_type of qualified_type
+]
+
+type import_spec_list = (
+    Token.t (* "(" *)
+  * (import_spec * anon_choice_LF_249c99f) list (* zero or more *)
+  * Token.t (* ")" *)
 )
 
 type anon_choice_exp_047b57a = [
@@ -189,6 +208,20 @@ and communication_case = (
   * statement_list option
 )
 
+and composite_literal = (
+    [
+        `Map_type of map_type
+      | `Slice_type of slice_type
+      | `Array_type of array_type
+      | `Impl_len_array_type of implicit_length_array_type
+      | `Struct_type of struct_type
+      | `Choice_id of type_identifier
+      | `Gene_type of generic_type
+      | `Qual_type of qualified_type
+    ]
+  * literal_value
+)
+
 and const_spec = (
     identifier (*tok*)
   * (Token.t (* "," *) * identifier (*tok*)) list (* zero or more *)
@@ -242,86 +275,39 @@ and default_case = (
   * statement_list option
 )
 
+and defer_statement = (Token.t (* "defer" *) * expression)
+
 and expression = [
-    `Un_exp of (
-        [
-            `PLUS of Token.t (* "+" *)
-          | `DASH of Token.t (* "-" *)
-          | `BANG of Token.t (* "!" *)
-          | `HAT of Token.t (* "^" *)
-          | `STAR of Token.t (* "*" *)
-          | `AMP of Token.t (* "&" *)
-          | `LTDASH of Token.t (* "<-" *)
-        ]
-      * expression
+    `Choice_un_exp of [
+        `Un_exp of unary_expression
+      | `Bin_exp of binary_expression
+      | `Sele_exp of selector_expression
+      | `Index_exp of index_expression
+      | `Slice_exp of slice_expression
+      | `Call_exp of call_expression
+      | `Type_asse_exp of type_assertion_expression
+      | `Type_conv_exp of type_conversion_expression
+      | `Id of identifier (*tok*)
+      | `Choice_new of anon_choice_new_0342769
+      | `Comp_lit of composite_literal
+      | `Func_lit of func_literal
+      | `Choice_raw_str_lit of string_literal
+      | `Int_lit of int_literal (*tok*)
+      | `Float_lit of float_literal (*tok*)
+      | `Imag_lit of imaginary_literal (*tok*)
+      | `Rune_lit of rune_literal (*tok*)
+      | `Nil of Token.t (* "nil" *)
+      | `True of Token.t (* "true" *)
+      | `False of Token.t (* "false" *)
+      | `Iota of Token.t (* "iota" *)
+      | `Paren_exp of parenthesized_expression
+    ]
+  | `Semg_ellips of Token.t (* "..." *)
+  | `Semg_meta of semgrep_metavariable (*tok*)
+  | `Semg_ellips_meta of semgrep_ellipsis_metavar (*tok*)
+  | `Semg_deep_exp of (
+        Token.t (* "<..." *) * expression * Token.t (* "...>" *)
     )
-  | `Bin_exp of binary_expression
-  | `Sele_exp of (expression * Token.t (* "." *) * identifier (*tok*))
-  | `Index_exp of (
-        expression * Token.t (* "[" *) * expression * Token.t (* "]" *)
-    )
-  | `Slice_exp of (
-        expression
-      * Token.t (* "[" *)
-      * [
-            `Opt_exp_COLON_opt_exp of (
-                expression option
-              * Token.t (* ":" *)
-              * expression option
-            )
-          | `Opt_exp_COLON_exp_COLON_exp of (
-                expression option
-              * Token.t (* ":" *)
-              * expression
-              * Token.t (* ":" *)
-              * expression
-            )
-        ]
-      * Token.t (* "]" *)
-    )
-  | `Call_exp of call_expression
-  | `Type_asse_exp of (
-        expression * Token.t (* "." *) * Token.t (* "(" *) * type_
-      * Token.t (* ")" *)
-    )
-  | `Type_conv_exp of (
-        type_
-      * Token.t (* "(" *)
-      * expression
-      * Token.t (* "," *) option
-      * Token.t (* ")" *)
-    )
-  | `Id of identifier (*tok*)
-  | `Choice_new of anon_choice_new_0342769
-  | `Comp_lit of (
-        [
-            `Map_type of map_type
-          | `Slice_type of slice_type
-          | `Array_type of array_type
-          | `Impl_len_array_type of implicit_length_array_type
-          | `Struct_type of struct_type
-          | `Id of identifier (*tok*)
-          | `Gene_type of generic_type
-          | `Qual_type of qualified_type
-        ]
-      * literal_value
-    )
-  | `Func_lit of (
-        Token.t (* "func" *)
-      * parameter_list
-      * anon_choice_param_list_29faba4 option
-      * block
-    )
-  | `Choice_raw_str_lit of string_literal
-  | `Int_lit of int_literal (*tok*)
-  | `Float_lit of float_literal (*tok*)
-  | `Imag_lit of imaginary_literal (*tok*)
-  | `Rune_lit of rune_literal (*tok*)
-  | `Nil of Token.t (* "nil" *)
-  | `True of Token.t (* "true" *)
-  | `False of Token.t (* "false" *)
-  | `Iota of Token.t (* "iota" *)
-  | `Paren_exp of (Token.t (* "(" *) * expression * Token.t (* ")" *))
 ]
 
 and expression_case = (
@@ -336,20 +322,33 @@ and expression_list = (
   * (Token.t (* "," *) * expression) list (* zero or more *)
 )
 
-and field_declaration = (
-    [
-        `Id_rep_COMMA_id_choice_simple_type of (
-            identifier (*tok*)
-          * (Token.t (* "," *) * identifier (*tok*)) list (* zero or more *)
-          * type_
-        )
-      | `Opt_STAR_choice_id of (
-            Token.t (* "*" *) option
-          * interface_type_name
-        )
-    ]
-  * string_literal option
+and expression_switch_statement = (
+    Token.t (* "switch" *)
+  * (simple_statement * Token.t (* ";" *)) option
+  * expression option
+  * Token.t (* "{" *)
+  * [ `Exp_case of expression_case | `Defa_case of default_case ]
+      list (* zero or more *)
+  * Token.t (* "}" *)
 )
+
+and field_declaration = [
+    `Choice_choice_id_rep_COMMA_choice_id_choice_simple_type_opt_choice_raw_str_lit of (
+        [
+            `Choice_id_rep_COMMA_choice_id_choice_simple_type of (
+                type_identifier
+              * (Token.t (* "," *) * type_identifier) list (* zero or more *)
+              * type_
+            )
+          | `Opt_STAR_choice_choice_id of (
+                Token.t (* "*" *) option
+              * interface_type_name
+            )
+        ]
+      * string_literal option
+    )
+  | `Semg_ellips of Token.t (* "..." *)
+]
 
 and field_declaration_list = (
     Token.t (* "{" *)
@@ -370,7 +369,27 @@ and for_clause = (
   * simple_statement option
 )
 
+and for_statement = (
+    Token.t (* "for" *)
+  * [
+        `Exp of expression
+      | `For_clause of for_clause
+      | `Range_clause of range_clause
+    ]
+      option
+  * block
+)
+
+and func_literal = (
+    Token.t (* "func" *)
+  * parameter_list
+  * anon_choice_param_list_29faba4 option
+  * block
+)
+
 and generic_type = (interface_type_name * type_arguments)
+
+and go_statement = (Token.t (* "go" *) * expression)
 
 and if_statement = (
     Token.t (* "if" *)
@@ -385,12 +404,12 @@ and implicit_length_array_type = (
     Token.t (* "[" *) * Token.t (* "..." *) * Token.t (* "]" *) * type_
 )
 
+and index_expression = (
+    expression * Token.t (* "[" *) * expression * Token.t (* "]" *)
+)
+
 and interface_body = [
-    `Meth_spec of (
-        identifier (*tok*)
-      * parameter_list
-      * anon_choice_param_list_29faba4 option
-    )
+    `Meth_spec of method_spec
   | `Inte_type_name of interface_type_name
   | `Cons_elem of (
         constraint_term
@@ -402,7 +421,12 @@ and interface_body = [
     )
 ]
 
-and literal_element = [ `Exp of expression | `Lit_value of literal_value ]
+and labeled_statement = (identifier (*tok*) * Token.t (* ":" *) * statement)
+
+and literal_element = [
+    `Choice_exp of [ `Exp of expression | `Lit_value of literal_value ]
+  | `Semg_ellips of Token.t (* "..." *)
+]
 
 and literal_value = (
     Token.t (* "{" *)
@@ -424,7 +448,28 @@ and map_type = (
   * type_
 )
 
-and parameter_declaration = (field_name_list option * type_)
+and method_spec = [
+    `Choice_id_param_list_opt_choice_param_list of (
+        type_identifier
+      * parameter_list
+      * anon_choice_param_list_29faba4 option
+    )
+  | `Semg_ellips of Token.t (* "..." *)
+]
+
+and parameter_declaration = [
+    `Opt_id_rep_COMMA_id_choice_simple_type of (
+        (
+            identifier (*tok*)
+          * (Token.t (* "," *) * identifier (*tok*)) list (* zero or more *)
+        )
+          option
+      * type_
+    )
+  | `Semg_ellips of Token.t (* "..." *)
+  | `Semg_ellips_meta of semgrep_ellipsis_metavar (*tok*)
+  | `Semg_meta_choice_simple_type of (semgrep_metavariable (*tok*) * type_)
+]
 
 and parameter_list = (
     Token.t (* "(" *)
@@ -441,6 +486,10 @@ and parameter_list = (
   * Token.t (* ")" *)
 )
 
+and parenthesized_expression = (
+    Token.t (* "(" *) * expression * Token.t (* ")" *)
+)
+
 and range_clause = (
     (expression_list * anon_choice_EQ_4ccabd6) option
   * Token.t (* "range" *)
@@ -451,6 +500,18 @@ and receive_statement = (
     (expression_list * anon_choice_EQ_4ccabd6) option
   * expression
 )
+
+and return_statement = (Token.t (* "return" *) * expression_list option)
+
+and select_statement = (
+    Token.t (* "select" *)
+  * Token.t (* "{" *)
+  * [ `Comm_case of communication_case | `Defa_case of default_case ]
+      list (* zero or more *)
+  * Token.t (* "}" *)
+)
+
+and selector_expression = (expression * Token.t (* "." *) * type_identifier)
 
 and send_statement = (expression * Token.t (* "<-" *) * expression)
 
@@ -483,7 +544,7 @@ and simple_statement = [
 ]
 
 and simple_type = [
-    `Id of identifier (*tok*)
+    `Choice_id of type_identifier
   | `Gene_type of generic_type
   | `Qual_type of qualified_type
   | `Poin_type of (Token.t (* "*" *) * type_)
@@ -510,6 +571,26 @@ and simple_type = [
     )
 ]
 
+and slice_expression = (
+    expression
+  * Token.t (* "[" *)
+  * [
+        `Opt_exp_COLON_opt_exp of (
+            expression option
+          * Token.t (* ":" *)
+          * expression option
+        )
+      | `Opt_exp_COLON_exp_COLON_exp of (
+            expression option
+          * Token.t (* ":" *)
+          * expression
+          * Token.t (* ":" *)
+          * expression
+        )
+    ]
+  * Token.t (* "]" *)
+)
+
 and slice_type = (Token.t (* "[" *) * Token.t (* "]" *) * type_)
 
 and special_argument_list = (
@@ -521,53 +602,27 @@ and special_argument_list = (
 )
 
 and statement = [
-    `Decl of declaration
-  | `Simple_stmt of simple_statement
-  | `Ret_stmt of (Token.t (* "return" *) * expression_list option)
-  | `Go_stmt of (Token.t (* "go" *) * expression)
-  | `Defer_stmt of (Token.t (* "defer" *) * expression)
-  | `If_stmt of if_statement
-  | `For_stmt of (
-        Token.t (* "for" *)
-      * [
-            `Exp of expression
-          | `For_clause of for_clause
-          | `Range_clause of range_clause
-        ]
-          option
-      * block
-    )
-  | `Exp_switch_stmt of (
-        Token.t (* "switch" *)
-      * (simple_statement * Token.t (* ";" *)) option
-      * expression option
-      * Token.t (* "{" *)
-      * [ `Exp_case of expression_case | `Defa_case of default_case ]
-          list (* zero or more *)
-      * Token.t (* "}" *)
-    )
-  | `Type_switch_stmt of (
-        Token.t (* "switch" *)
-      * type_switch_header
-      * Token.t (* "{" *)
-      * [ `Type_case of type_case | `Defa_case of default_case ]
-          list (* zero or more *)
-      * Token.t (* "}" *)
-    )
-  | `Select_stmt of (
-        Token.t (* "select" *)
-      * Token.t (* "{" *)
-      * [ `Comm_case of communication_case | `Defa_case of default_case ]
-          list (* zero or more *)
-      * Token.t (* "}" *)
-    )
-  | `Labe_stmt of (identifier (*tok*) * Token.t (* ":" *) * statement)
-  | `Fall_stmt of Token.t (* "fallthrough" *)
-  | `Brk_stmt of (Token.t (* "break" *) * identifier (*tok*) option)
-  | `Cont_stmt of (Token.t (* "continue" *) * identifier (*tok*) option)
-  | `Goto_stmt of (Token.t (* "goto" *) * identifier (*tok*))
-  | `Blk of block
-  | `Empty_stmt of Token.t (* ";" *)
+    `Choice_decl of [
+        `Decl of declaration
+      | `Simple_stmt of simple_statement
+      | `Ret_stmt of return_statement
+      | `Go_stmt of go_statement
+      | `Defer_stmt of defer_statement
+      | `If_stmt of if_statement
+      | `For_stmt of for_statement
+      | `Exp_switch_stmt of expression_switch_statement
+      | `Type_switch_stmt of type_switch_statement
+      | `Select_stmt of select_statement
+      | `Labe_stmt of labeled_statement
+      | `Fall_stmt of Token.t (* "fallthrough" *)
+      | `Brk_stmt of break_statement
+      | `Cont_stmt of continue_statement
+      | `Goto_stmt of goto_statement
+      | `Blk of block
+      | `Empty_stmt of Token.t (* ";" *)
+    ]
+  | `Semg_ellips of Token.t (* "..." *)
+  | `Semg_ellips_meta of semgrep_ellipsis_metavar (*tok*)
 ]
 
 and statement_list = [
@@ -591,7 +646,7 @@ and type_ = [
   | `Paren_type of (Token.t (* "(" *) * type_ * Token.t (* ")" *))
 ]
 
-and type_alias = (identifier (*tok*) * Token.t (* "=" *) * type_)
+and type_alias = (type_identifier * Token.t (* "=" *) * type_)
 
 and type_arguments = (
     Token.t (* "[" *)
@@ -599,6 +654,11 @@ and type_arguments = (
   * (Token.t (* "," *) * type_) list (* zero or more *)
   * Token.t (* "," *) option
   * Token.t (* "]" *)
+)
+
+and type_assertion_expression = (
+    expression * Token.t (* "." *) * Token.t (* "(" *) * type_
+  * Token.t (* ")" *)
 )
 
 and type_case = (
@@ -609,6 +669,14 @@ and type_case = (
   * statement_list option
 )
 
+and type_conversion_expression = (
+    type_
+  * Token.t (* "(" *)
+  * expression
+  * Token.t (* "," *) option
+  * Token.t (* ")" *)
+)
+
 and type_parameter_list = (
     Token.t (* "[" *)
   * parameter_declaration
@@ -617,7 +685,7 @@ and type_parameter_list = (
   * Token.t (* "]" *)
 )
 
-and type_spec = (identifier (*tok*) * type_parameter_list option * type_)
+and type_spec = (type_identifier * type_parameter_list option * type_)
 
 and type_switch_header = (
     (simple_statement * Token.t (* ";" *)) option
@@ -627,6 +695,28 @@ and type_switch_header = (
   * Token.t (* "(" *)
   * Token.t (* "type" *)
   * Token.t (* ")" *)
+)
+
+and type_switch_statement = (
+    Token.t (* "switch" *)
+  * type_switch_header
+  * Token.t (* "{" *)
+  * [ `Type_case of type_case | `Defa_case of default_case ]
+      list (* zero or more *)
+  * Token.t (* "}" *)
+)
+
+and unary_expression = (
+    [
+        `PLUS of Token.t (* "+" *)
+      | `DASH of Token.t (* "-" *)
+      | `BANG of Token.t (* "!" *)
+      | `HAT of Token.t (* "^" *)
+      | `STAR of Token.t (* "*" *)
+      | `AMP of Token.t (* "&" *)
+      | `LTDASH of Token.t (* "<-" *)
+    ]
+  * expression
 )
 
 and var_spec = (
@@ -641,17 +731,11 @@ and var_spec = (
     ]
 )
 
-type import_spec_list = (
-    Token.t (* "(" *)
-  * (import_spec * anon_choice_LF_249c99f) list (* zero or more *)
-  * Token.t (* ")" *)
-)
-
 type top_level_declaration = [
     `Pack_clause of (Token.t (* "package" *) * identifier (*tok*))
   | `Func_decl of (
         Token.t (* "func" *)
-      * identifier (*tok*)
+      * type_identifier
       * type_parameter_list option
       * parameter_list
       * anon_choice_param_list_29faba4 option
@@ -660,7 +744,7 @@ type top_level_declaration = [
   | `Meth_decl of (
         Token.t (* "func" *)
       * parameter_list
-      * identifier (*tok*)
+      * type_identifier
       * parameter_list
       * anon_choice_param_list_29faba4 option
       * block option
@@ -698,15 +782,13 @@ type nil (* inlined *) = Token.t (* "nil" *)
 
 type comment (* inlined *) = Token.t
 
+type semgrep_ellipsis (* inlined *) = Token.t (* "..." *)
+
 type true_ (* inlined *) = Token.t (* "true" *)
 
 type dot (* inlined *) = Token.t (* "." *)
 
-type field_identifier (* inlined *) = identifier (*tok*)
-
 type package_identifier (* inlined *) = identifier (*tok*)
-
-type type_identifier (* inlined *) = identifier (*tok*)
 
 type interpreted_string_literal (* inlined *) = (
     Token.t (* "\"" *)
@@ -719,22 +801,18 @@ type interpreted_string_literal (* inlined *) = (
   * Token.t (* "\"" *)
 )
 
-type continue_statement (* inlined *) = (
-    Token.t (* "continue" *)
-  * identifier (*tok*) option
-)
-
-type break_statement (* inlined *) = (
-    Token.t (* "break" *)
-  * identifier (*tok*) option
-)
+type field_identifier (* inlined *) = [
+    `Id of identifier (*tok*)
+  | `Semg_meta of semgrep_metavariable (*tok*)
+]
 
 type package_clause (* inlined *) = (
     Token.t (* "package" *) * identifier (*tok*)
 )
 
-type goto_statement (* inlined *) = (
-    Token.t (* "goto" *) * identifier (*tok*)
+type field_name_list (* inlined *) = (
+    type_identifier
+  * (Token.t (* "," *) * type_identifier) list (* zero or more *)
 )
 
 type constraint_elem (* inlined *) = (
@@ -761,20 +839,6 @@ type assignment_statement (* inlined *) = (
   * expression_list
 )
 
-type composite_literal (* inlined *) = (
-    [
-        `Map_type of map_type
-      | `Slice_type of slice_type
-      | `Array_type of array_type
-      | `Impl_len_array_type of implicit_length_array_type
-      | `Struct_type of struct_type
-      | `Id of identifier (*tok*)
-      | `Gene_type of generic_type
-      | `Qual_type of qualified_type
-    ]
-  * literal_value
-)
-
 type const_declaration (* inlined *) = (
     Token.t (* "const" *)
   * [
@@ -789,49 +853,13 @@ type const_declaration (* inlined *) = (
 
 type dec_statement (* inlined *) = (expression * Token.t (* "--" *))
 
-type defer_statement (* inlined *) = (Token.t (* "defer" *) * expression)
-
-type expression_switch_statement (* inlined *) = (
-    Token.t (* "switch" *)
-  * (simple_statement * Token.t (* ";" *)) option
-  * expression option
-  * Token.t (* "{" *)
-  * [ `Exp_case of expression_case | `Defa_case of default_case ]
-      list (* zero or more *)
-  * Token.t (* "}" *)
-)
-
-type for_statement (* inlined *) = (
-    Token.t (* "for" *)
-  * [
-        `Exp of expression
-      | `For_clause of for_clause
-      | `Range_clause of range_clause
-    ]
-      option
-  * block
-)
-
-type func_literal (* inlined *) = (
-    Token.t (* "func" *)
-  * parameter_list
-  * anon_choice_param_list_29faba4 option
-  * block
-)
-
 type function_type (* inlined *) = (
     Token.t (* "func" *)
   * parameter_list
   * anon_choice_param_list_29faba4 option
 )
 
-type go_statement (* inlined *) = (Token.t (* "go" *) * expression)
-
 type inc_statement (* inlined *) = (expression * Token.t (* "++" *))
-
-type index_expression (* inlined *) = (
-    expression * Token.t (* "[" *) * expression * Token.t (* "]" *)
-)
 
 type interface_type (* inlined *) = (
     Token.t (* "interface" *)
@@ -849,83 +877,23 @@ type keyed_element (* inlined *) = (
     literal_element * Token.t (* ":" *) * literal_element
 )
 
-type labeled_statement (* inlined *) = (
-    identifier (*tok*) * Token.t (* ":" *) * statement
-)
-
-type method_spec (* inlined *) = (
-    identifier (*tok*)
-  * parameter_list
-  * anon_choice_param_list_29faba4 option
-)
-
-type parenthesized_expression (* inlined *) = (
-    Token.t (* "(" *) * expression * Token.t (* ")" *)
-)
-
 type parenthesized_type (* inlined *) = (
     Token.t (* "(" *) * type_ * Token.t (* ")" *)
 )
 
 type pointer_type (* inlined *) = (Token.t (* "*" *) * type_)
 
-type return_statement (* inlined *) = (
-    Token.t (* "return" *)
-  * expression_list option
-)
-
-type select_statement (* inlined *) = (
-    Token.t (* "select" *)
-  * Token.t (* "{" *)
-  * [ `Comm_case of communication_case | `Defa_case of default_case ]
-      list (* zero or more *)
-  * Token.t (* "}" *)
-)
-
-type selector_expression (* inlined *) = (
-    expression * Token.t (* "." *) * identifier (*tok*)
+type semgrep_deep_expression (* inlined *) = (
+    Token.t (* "<..." *) * expression * Token.t (* "...>" *)
 )
 
 type short_var_declaration (* inlined *) = (
     expression_list * Token.t (* ":=" *) * expression_list
 )
 
-type slice_expression (* inlined *) = (
-    expression
-  * Token.t (* "[" *)
-  * [
-        `Opt_exp_COLON_opt_exp of (
-            expression option
-          * Token.t (* ":" *)
-          * expression option
-        )
-      | `Opt_exp_COLON_exp_COLON_exp of (
-            expression option
-          * Token.t (* ":" *)
-          * expression
-          * Token.t (* ":" *)
-          * expression
-        )
-    ]
-  * Token.t (* "]" *)
-)
-
 type struct_elem (* inlined *) = (
     struct_term
   * (Token.t (* "|" *) * struct_term) list (* zero or more *)
-)
-
-type type_assertion_expression (* inlined *) = (
-    expression * Token.t (* "." *) * Token.t (* "(" *) * type_
-  * Token.t (* ")" *)
-)
-
-type type_conversion_expression (* inlined *) = (
-    type_
-  * Token.t (* "(" *)
-  * expression
-  * Token.t (* "," *) option
-  * Token.t (* ")" *)
 )
 
 type type_declaration (* inlined *) = (
@@ -943,28 +911,6 @@ type type_declaration (* inlined *) = (
           * Token.t (* ")" *)
         )
     ]
-)
-
-type type_switch_statement (* inlined *) = (
-    Token.t (* "switch" *)
-  * type_switch_header
-  * Token.t (* "{" *)
-  * [ `Type_case of type_case | `Defa_case of default_case ]
-      list (* zero or more *)
-  * Token.t (* "}" *)
-)
-
-type unary_expression (* inlined *) = (
-    [
-        `PLUS of Token.t (* "+" *)
-      | `DASH of Token.t (* "-" *)
-      | `BANG of Token.t (* "!" *)
-      | `HAT of Token.t (* "^" *)
-      | `STAR of Token.t (* "*" *)
-      | `AMP of Token.t (* "&" *)
-      | `LTDASH of Token.t (* "<-" *)
-    ]
-  * expression
 )
 
 type var_declaration (* inlined *) = (
@@ -987,10 +933,15 @@ type variadic_parameter_declaration (* inlined *) = (
   * type_
 )
 
+type import_declaration (* inlined *) = (
+    Token.t (* "import" *)
+  * [ `Import_spec of import_spec | `Import_spec_list of import_spec_list ]
+)
+
 type method_declaration (* inlined *) = (
     Token.t (* "func" *)
   * parameter_list
-  * identifier (*tok*)
+  * type_identifier
   * parameter_list
   * anon_choice_param_list_29faba4 option
   * block option
@@ -998,16 +949,11 @@ type method_declaration (* inlined *) = (
 
 type function_declaration (* inlined *) = (
     Token.t (* "func" *)
-  * identifier (*tok*)
+  * type_identifier
   * type_parameter_list option
   * parameter_list
   * anon_choice_param_list_29faba4 option
   * block option
-)
-
-type import_declaration (* inlined *) = (
-    Token.t (* "import" *)
-  * [ `Import_spec of import_spec | `Import_spec_list of import_spec_list ]
 )
 
 type extra = [ `Comment of Loc.t * comment ]
